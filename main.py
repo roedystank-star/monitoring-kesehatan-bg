@@ -1,0 +1,63 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import os
+
+# File CSV database
+DB_FILE = "data_kesehatan.csv"
+
+# Jika file belum ada → buat baru dengan header
+if not os.path.exists(DB_FILE):
+    df_init = pd.DataFrame(columns=["timestamp", "nama", "keluhan", "tingkat_polusi", "keterangan"])
+    df_init.to_csv(DB_FILE, index=False)
+
+st.set_page_config(page_title="Monitoring Kesehatan Pernapasan BG", layout="wide")
+st.title("🌬️ Monitoring Kesehatan Pernapasan — Bantar Gebang")
+st.write("Aplikasi pendataan gejala pernapasan akibat polusi udara.")
+
+# Form
+with st.form("input_form", clear_on_submit=True):
+    nama = st.text_input("Nama Warga")
+    keluhan = st.selectbox("Keluhan Pernapasan",
+                           ["Batuk", "Sesak Napas", "Pilek/Flu",
+                            "Sakit Tenggorokan", "Gangguan Lain"])
+    polusi = st.slider("Persepsi Tingkat Polusi Udara (1 = Rendah, 10 = Sangat Tinggi)", 1, 10, 5)
+    keterangan = st.text_input("Keterangan Tambahan (opsional)")
+    submit = st.form_submit_button("Submit Data")
+
+if submit:
+    if not nama.strip():
+        st.warning("Nama harus diisi!")
+    else:
+        df = pd.read_csv(DB_FILE)
+        new_row = {
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "nama": nama.strip(),
+            "keluhan": keluhan,
+            "tingkat_polusi": polusi,
+            "keterangan": keterangan.strip()
+        }
+        df.loc[len(df)] = new_row
+        df.to_csv(DB_FILE, index=False)
+        st.success("✅ Data berhasil disimpan!")
+
+st.markdown("---")
+st.subheader("📊 Data Monitoring")
+
+try:
+    df = pd.read_csv(DB_FILE)
+    if not df.empty:
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        left, right = st.columns([2,1])
+        with left:
+            st.dataframe(df.sort_values("timestamp", ascending=False), height=350)
+        with right:
+            st.metric("Total Laporan", len(df))
+            df_plot = df.copy()
+            df_plot["date"] = df_plot["timestamp"].dt.date
+            avg_per_day = df_plot.groupby("date")["tingkat_polusi"].mean()
+            st.line_chart(avg_per_day)
+    else:
+        st.info("Belum ada data tersimpan.")
+except:
+    st.info("Belum ada data tersimpan.")
